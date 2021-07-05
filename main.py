@@ -31,20 +31,32 @@ def open_as_text(open_fn, lines=10):
         break
 
 
+def directory_storage_iterator(path):
+    for filename in os.listdir(path):
+        full_path = path / filename
+        # TODO: remove this hack and go and figure out what the file is.
+        if filename.endswith(".zip"):
+            with zipfile.ZipFile(full_path) as f:
+                yield from zip_storage_iterator(full_path, f)
+        if not filename.endswith(".zip"):
+            yield full_path, lambda: open(full_path, "rb")
+
+
+def zip_storage_iterator(parent_path, zf):
+    for info in zf.infolist():
+        # TODO: remove this hack and go and figure out what the file is.
+        full_path = parent_path / info.filename
+        if info.filename.endswith(".zip"):
+            with zipfile.ZipFile(zf.open(info)) as f:
+                yield from zip_storage_iterator(full_path, f)
+        else:
+            yield full_path, lambda: zf.open(info)
+
+
 if __name__ == "__main__":
     path = pathlib.Path("samples")
 
-    for filename in os.listdir(path):
-        if not filename.endswith(".zip"):
-            full_path = path / filename
-            with open_as_text(lambda: open(full_path, "rb")) as (e, f):
-                print(f"Encoding = {e}")
-                cat(f)
-
-    zipname = path / "samples.zip"
-    with zipfile.ZipFile(zipname) as zf:
-        for filename in zf.namelist():
-            full_path = zipname / filename
-            with open_as_text(lambda: zf.open(filename)) as (e, f):
-                print(f"Encoding = {e}")
-                cat(f)
+    for file_path, opener in directory_storage_iterator(path):
+        with open_as_text(opener) as (e, f):
+            print(f"--- PATH: {file_path} ENCODING: {e}")
+            cat(f)
