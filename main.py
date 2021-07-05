@@ -1,7 +1,9 @@
 import io
-import os
 import pathlib
 import zipfile
+
+all_handles = []
+all_files = []
 
 
 def cat(f):
@@ -26,20 +28,21 @@ def guess_encoding(open_fn, lines=10):
 def opener(open_fn, full_path):
     encoding = guess_encoding(open_fn)
     if encoding:
-        with open_fn() as f:
-            with io.BufferedReader(f) as bf:
-                yield full_path, encoding, io.TextIOWrapper(bf, encoding=encoding)
+        f = open_fn()
+        bf = io.BufferedReader(f)
+        all_handles.append(bf)
+        all_files.append((full_path, encoding, io.TextIOWrapper(bf, encoding=encoding)))
 
 
 def directory_storage_iterator(path):
     for full_path in sorted(path.glob("**/*")):
         if full_path.is_file():
             # TODO: remove this hack and go and figure out what the file is.
-            if str(path).endswith(".zip"):
+            if str(full_path).endswith(".zip"):
                 with zipfile.ZipFile(full_path) as f:
-                    yield from zip_storage_iterator(full_path, f)
+                    zip_storage_iterator(full_path, f)
             else:
-                yield from opener(lambda: open(full_path, "rb"), full_path)
+                opener(lambda: open(full_path, "rb"), full_path)
 
 
 def zip_storage_iterator(parent_path, zf):
@@ -48,16 +51,18 @@ def zip_storage_iterator(parent_path, zf):
         full_path = parent_path / info.filename
         if info.filename.endswith(".zip"):
             with zipfile.ZipFile(zf.open(info)) as f:
-                yield from zip_storage_iterator(full_path, f)
+                zip_storage_iterator(full_path, f)
         else:
-            yield from opener(lambda: zf.open(info), full_path)
+            opener(lambda: zf.open(info), full_path)
 
 
 if __name__ == "__main__":
     path = pathlib.Path("samples")
 
-    for file_path, encoding, stream in directory_storage_iterator(path):
-        print(f"PATH: {file_path}, ENCODING: {encoding}")
-        # Now we have a seekable, buffered text stream, so we can sample a little of it to guess the timestamp format,
-        # then happily rewind it.
+    directory_storage_iterator(path)
+    for path, encoding, stream in all_files:
+        print(f"PATH {path} ENCODING {encoding}")
         cat(stream)
+
+    while len(all_handles) > 0:
+        all_handles.pop().close()
