@@ -23,6 +23,14 @@ def guess_encoding(open_fn, lines=10):
                 continue
 
 
+def opener(open_fn, full_path):
+    encoding = guess_encoding(open_fn)
+    if encoding:
+        with open_fn() as f:
+            with io.BufferedReader(f) as bf:
+                yield full_path, encoding, io.TextIOWrapper(bf, encoding=encoding)
+
+
 def directory_storage_iterator(path):
     for filename in os.listdir(path):
         full_path = path / filename
@@ -31,11 +39,7 @@ def directory_storage_iterator(path):
             with zipfile.ZipFile(full_path) as f:
                 yield from zip_storage_iterator(full_path, f)
         else:
-            encoding = guess_encoding(lambda: open(full_path, "rb"))
-            if encoding:
-                with open(full_path, "rb") as f:
-                    with io.BufferedReader(f) as bf:
-                        yield full_path, encoding, io.TextIOWrapper(bf, encoding=encoding)
+            yield from opener(lambda: open(full_path, "rb"), full_path)
 
 
 def zip_storage_iterator(parent_path, zf):
@@ -46,18 +50,14 @@ def zip_storage_iterator(parent_path, zf):
             with zipfile.ZipFile(zf.open(info)) as f:
                 yield from zip_storage_iterator(full_path, f)
         else:
-            encoding = guess_encoding(lambda: zf.open(info))
-            if encoding:
-                with zf.open(info) as f:
-                    with io.BufferedReader(f) as bf:
-                        yield full_path, encoding, io.TextIOWrapper(bf, encoding=encoding)
+            yield from opener(lambda: zf.open(info), full_path)
 
 
 if __name__ == "__main__":
     path = pathlib.Path("samples")
 
-    for file_path, encoding, f in directory_storage_iterator(path):
+    for file_path, encoding, stream in directory_storage_iterator(path):
         print(f"PATH: {file_path}, ENCODING: {encoding}")
         # Now we have a seekable, buffered text stream, so we can sample a little of it to guess the timestamp format,
         # then happily rewind it.
-        cat(f)
+        cat(stream)
