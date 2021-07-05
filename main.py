@@ -60,9 +60,16 @@ if __name__ == "__main__":
     path = pathlib.Path("samples")
 
     directory_storage_iterator(path)
-    for path, encoding, stream in all_files:
-        print(f"PATH {path} ENCODING {encoding}")
-        cat(stream)
+    read_data = True
+    while read_data:
+        read_data = False
+        for path, encoding, stream in all_files:
+            try:
+                line = next(stream)
+                print(f"PATH {path} ENCODING {encoding} LINE {line.rstrip()}")
+                read_data = True
+            except StopIteration:
+                pass
 
     while len(all_handles) > 0:
         all_handles.pop().close()
