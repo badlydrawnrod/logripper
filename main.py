@@ -56,7 +56,10 @@ def zip_storage_iterator(parent_path, zf):
 if __name__ == "__main__":
     path = pathlib.Path("samples")
 
-    for file_path, opener in directory_storage_iterator(path):
-        with open_as_text(opener) as (e, f):
-            print(f"--- PATH: {file_path} ENCODING: {e}")
+    # TODO: what happens if we can't open a file as text?
+    with contextlib.ExitStack() as stack:
+        files = [(file_path, stack.enter_context(open_as_text(opener))) for file_path, opener in
+                 directory_storage_iterator(path)]
+        for file_path, (e, f) in files:
+            print(f"PATH: {file_path}, ENCODING: {e}")
             cat(f)
