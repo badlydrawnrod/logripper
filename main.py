@@ -32,14 +32,14 @@ def opener(open_fn, full_path):
 
 
 def directory_storage_iterator(path):
-    for filename in os.listdir(path):
-        full_path = path / filename
-        # TODO: remove this hack and go and figure out what the file is.
-        if filename.endswith(".zip"):
-            with zipfile.ZipFile(full_path) as f:
-                yield from zip_storage_iterator(full_path, f)
-        else:
-            yield from opener(lambda: open(full_path, "rb"), full_path)
+    for full_path in sorted(path.glob("**/*")):
+        if full_path.is_file():
+            # TODO: remove this hack and go and figure out what the file is.
+            if str(path).endswith(".zip"):
+                with zipfile.ZipFile(full_path) as f:
+                    yield from zip_storage_iterator(full_path, f)
+            else:
+                yield from opener(lambda: open(full_path, "rb"), full_path)
 
 
 def zip_storage_iterator(parent_path, zf):
