@@ -9,9 +9,17 @@ class TextStream:
         self.reader = io.TextIOWrapper(self.owner, encoding=encoding)
         self.path = path
         self.encoding = encoding
+        self.current_line = ""
+
+    def peekline(self):
+        if len(self.current_line) == 0:
+            self.current_line = self.reader.readline()
+        return self.current_line
 
     def readline(self):
-        return self.reader.readline()
+        result = self.current_line if len(self.current_line) > 0 else self.peekline()
+        self.current_line = ""
+        return result
 
 
 def guess_encoding(open_fn, lines=10):
