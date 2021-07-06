@@ -1,9 +1,9 @@
-import datetime
-import dateutil.parser
 import io
 import pathlib
 import re
 import zipfile
+
+import dateutil.parser
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
@@ -60,6 +60,8 @@ def recurse_in_directory(path):
             else:
                 open_fn = lambda: open(full_path, "rb")
                 if encoding := guess_encoding(open_fn):
+                    # TODO: optimization - attempt to guess the timestamp format (it may not be ISO) and only add
+                    #  streams that have timestamps.
                     result.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
     return result
 
@@ -75,6 +77,8 @@ def recurse_in_zip(parent_path, zf):
         else:
             open_fn = lambda: zf.open(info)
             if encoding := guess_encoding(open_fn):
+                # TODO: optimization - attempt to guess the timestamp format (it may not be ISO) and only add
+                #  streams that have timestamps.
                 result.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
     return result
 
