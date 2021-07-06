@@ -8,9 +8,12 @@ all_streams = []
 class TextStream:
     def __init__(self, owner, path, encoding):
         self.owner = owner
+        self.reader = io.TextIOWrapper(self.owner, encoding=encoding)
         self.path = path
         self.encoding = encoding
-        self.reader = io.TextIOWrapper(self.owner, encoding=encoding)
+
+    def readline(self):
+        return self.reader.readline()
 
 
 def guess_encoding(open_fn, lines=10):
@@ -26,12 +29,6 @@ def guess_encoding(open_fn, lines=10):
                 continue
 
 
-def make_text_stream(open_fn, full_path):
-    encoding = guess_encoding(open_fn)
-    if encoding:
-        all_streams.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
-
-
 def directory_storage_iterator(path):
     for full_path in sorted(path.glob("**/*")):
         if full_path.is_file():
@@ -40,7 +37,10 @@ def directory_storage_iterator(path):
                 with zipfile.ZipFile(full_path) as f:
                     zip_storage_iterator(full_path, f)
             else:
-                make_text_stream(lambda: open(full_path, "rb"), full_path)
+                open_fn = lambda: open(full_path, "rb")
+                encoding = guess_encoding(open_fn)
+                if encoding:
+                    all_streams.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
 
 
 def zip_storage_iterator(parent_path, zf):
@@ -51,7 +51,10 @@ def zip_storage_iterator(parent_path, zf):
             with zipfile.ZipFile(zf.open(info)) as f:
                 zip_storage_iterator(full_path, f)
         else:
-            make_text_stream(lambda: zf.open(info), full_path)
+            open_fn = lambda: zf.open(info)
+            encoding = guess_encoding(open_fn)
+            if encoding:
+                all_streams.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
 
 
 if __name__ == "__main__":
@@ -62,10 +65,8 @@ if __name__ == "__main__":
     read_data = True
     while read_data:
         read_data = False
-        for thing in all_streams:
-            try:
-                line = next(thing.reader)
-                print(f"PATH {thing.path} ENCODING {thing.encoding} LINE {line.rstrip()}")
+        for stream in all_streams:
+            line = stream.readline()
+            if len(line) > 0:
+                print(f"PATH {stream.path} ENCODING {stream.encoding} LINE {line.rstrip()}")
                 read_data = True
-            except StopIteration:
-                pass
