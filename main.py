@@ -85,7 +85,12 @@ def recurse_in_zip(parent_path, zf):
     return result
 
 
+# TODO: support tar files (should be very similar to zip file support).
+
 if __name__ == "__main__":
+    # TODO: specify files / directories on the command line.
+    # TODO: better error handling all round.
+
     path = pathlib.Path(".")
 
     text_streams = recurse_in_directory(path)
