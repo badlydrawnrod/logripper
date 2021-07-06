@@ -8,3 +8,4 @@ gap
 until
 closing
 2020-01-27T22:11:24.305 -- Closing ASCII log --
+Trailing stuff
