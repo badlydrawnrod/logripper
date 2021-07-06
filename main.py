@@ -2,14 +2,15 @@ import io
 import pathlib
 import zipfile
 
-all_handles = []
-all_files = []
+all_streams = []
 
 
-def cat(f):
-    for line in f:
-        line = line.rstrip()
-        print(line)
+class TextStream:
+    def __init__(self, owner, path, encoding):
+        self.owner = owner
+        self.path = path
+        self.encoding = encoding
+        self.reader = io.TextIOWrapper(self.owner, encoding=encoding)
 
 
 def guess_encoding(open_fn, lines=10):
@@ -25,13 +26,10 @@ def guess_encoding(open_fn, lines=10):
                 continue
 
 
-def opener(open_fn, full_path):
+def make_text_stream(open_fn, full_path):
     encoding = guess_encoding(open_fn)
     if encoding:
-        f = open_fn()
-        bf = io.BufferedReader(f)
-        all_handles.append(bf)
-        all_files.append((full_path, encoding, io.TextIOWrapper(bf, encoding=encoding)))
+        all_streams.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
 
 
 def directory_storage_iterator(path):
@@ -42,7 +40,7 @@ def directory_storage_iterator(path):
                 with zipfile.ZipFile(full_path) as f:
                     zip_storage_iterator(full_path, f)
             else:
-                opener(lambda: open(full_path, "rb"), full_path)
+                make_text_stream(lambda: open(full_path, "rb"), full_path)
 
 
 def zip_storage_iterator(parent_path, zf):
@@ -53,23 +51,21 @@ def zip_storage_iterator(parent_path, zf):
             with zipfile.ZipFile(zf.open(info)) as f:
                 zip_storage_iterator(full_path, f)
         else:
-            opener(lambda: zf.open(info), full_path)
+            make_text_stream(lambda: zf.open(info), full_path)
 
 
 if __name__ == "__main__":
     path = pathlib.Path("samples")
 
     directory_storage_iterator(path)
+
     read_data = True
     while read_data:
         read_data = False
-        for path, encoding, stream in all_files:
+        for thing in all_streams:
             try:
-                line = next(stream)
-                print(f"PATH {path} ENCODING {encoding} LINE {line.rstrip()}")
+                line = next(thing.reader)
+                print(f"PATH {thing.path} ENCODING {thing.encoding} LINE {line.rstrip()}")
                 read_data = True
             except StopIteration:
                 pass
-
-    while len(all_handles) > 0:
-        all_handles.pop().close()
