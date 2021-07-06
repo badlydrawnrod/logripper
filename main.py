@@ -1,6 +1,7 @@
 import io
 import pathlib
 import re
+import tarfile
 import zipfile
 
 import dateutil.parser
@@ -59,6 +60,9 @@ def recurse_in_directory(path):
             if str(full_path).endswith(".zip"):
                 with zipfile.ZipFile(full_path) as f:
                     result.extend(recurse_in_zip(full_path, f))
+            elif str(full_path).endswith(".tar"):
+                with tarfile.TarFile(full_path) as f:
+                    result.extend(recurse_in_tar(full_path, f))
             else:
                 open_fn = lambda: open(full_path, "rb")
                 if encoding := guess_encoding(open_fn):
@@ -76,6 +80,9 @@ def recurse_in_zip(parent_path, zf):
         if info.filename.endswith(".zip"):
             with zipfile.ZipFile(zf.open(info)) as f:
                 result.extend(recurse_in_zip(full_path, f))
+        elif info.filename.endswith(".tar"):
+            with tarfile.TarFile(zf.open(info)) as f:
+                result.extend(recurse_in_tar(full_path, f))
         else:
             open_fn = lambda: zf.open(info)
             if encoding := guess_encoding(open_fn):
@@ -85,7 +92,25 @@ def recurse_in_zip(parent_path, zf):
     return result
 
 
-# TODO: support tar files (should be very similar to zip file support).
+def recurse_in_tar(parent_path, tf):
+    result = []
+    for info in tf.getmembers():
+        # TODO: remove this hack and go and figure out what the file is.
+        full_path = parent_path / info.name
+        if info.name.endswith(".zip"):
+            with zipfile.ZipFile(tf.extractfile(info)) as f:
+                result.extend(recurse_in_zip(full_path, f))
+        elif info.name.endswith(".tar"):
+            with tarfile.TarFile(tf.extractfile(info)) as f:
+                result.extend(recurse_in_tar(full_path, f))
+        else:
+            open_fn = lambda: tf.extractfile(info)
+            if encoding := guess_encoding(open_fn):
+                text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
+                if text_stream.current_time is not None:
+                    result.append(text_stream)
+    return result
+
 
 if __name__ == "__main__":
     # TODO: specify files / directories on the command line.
