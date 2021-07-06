@@ -17,13 +17,15 @@ class TextStream:
         self.path = path
         self.current_line = ""
         self.current_time = None
+        # TODO: read ahead a little, in case this stream has headers that don't have timestamps.
+        self.peekline()
 
     def peekline(self):
         if len(self.current_line) == 0:
             self.current_line = self.reader.readline()
             if matched := iso_re.match(self.current_line):
                 start, end = matched.span()
-                self.current_time = dateutil.parser.parse(self.current_line[start:end])
+                self.current_time = dateutil.parser.isoparse(self.current_line[start:end])
                 self.current_line = self.current_line[end:]
             else:
                 self.current_time = None
@@ -60,9 +62,9 @@ def recurse_in_directory(path):
             else:
                 open_fn = lambda: open(full_path, "rb")
                 if encoding := guess_encoding(open_fn):
-                    # TODO: optimization - attempt to guess the timestamp format (it may not be ISO) and only add
-                    #  streams that have timestamps.
-                    result.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
+                    text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
+                    if text_stream.current_time is not None:
+                        result.append(text_stream)
     return result
 
 
@@ -77,9 +79,9 @@ def recurse_in_zip(parent_path, zf):
         else:
             open_fn = lambda: zf.open(info)
             if encoding := guess_encoding(open_fn):
-                # TODO: optimization - attempt to guess the timestamp format (it may not be ISO) and only add
-                #  streams that have timestamps.
-                result.append(TextStream(io.BufferedReader(open_fn()), full_path, encoding))
+                text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
+                if text_stream.current_time is not None:
+                    result.append(text_stream)
     return result
 
 
@@ -88,25 +90,24 @@ if __name__ == "__main__":
 
     text_streams = recurse_in_directory(path)
 
-    # Advance each stream until there are no streams left.
     while len(text_streams) > 0:
         # Order the streams by timestamp, removing those that have none.
         text_streams = [stream for stream in text_streams if stream.peekline() and stream.current_time is not None]
         text_streams.sort(key=lambda s: s.current_time)
 
-        # Output the oldest stream.
+        # Read from the oldest stream.
         if len(text_streams) > 0:
             oldest = text_streams[0]
             line = oldest.readline()
-            ts = oldest.current_time.isoformat()
+            timestamp = oldest.current_time.isoformat()
             line = line.strip()
-            print(f"{ts}, {line}, {oldest.path}")
+            print(f"{timestamp}, {line}, {oldest.path}")
 
-            # Read any lines from the oldest stream that don't have a timestamp and account for them as if they're part
-            # of the previous line.
+            # Read any lines from the oldest stream that don't have a timestamp and account for them as if they have
+            # the same timestamp as the previous line.
             line = oldest.peekline()
             while len(line) > 0 and oldest.current_time is None:
                 line = oldest.readline()
                 line = line.strip()
-                print(f"{ts}, {line}, {oldest.path}")
+                print(f"{timestamp}, {line}, {oldest.path}")
                 line = oldest.peekline()
