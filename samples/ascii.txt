@@ -1,6 +1,10 @@
-2018-01-27T22:11:20.300	-- Opening ASCII log --
+2017-01-27T22:11:20.300	-- Opening ASCII log --
 This line doesn't have a timestamp.
-2018-01-27T22:11:21.300	ASCII Log Program version 3.74
-2018-01-27T22:11:22.300	Customer ID: 524f4421
-2018-01-27T22:11:23.300	Customer URL: http://www.example.com
-2018-01-27T22:11:24.300	-- Closing ASCII log --
+2019-01-27T22:11:21.302	ASCII Log Program version 3.74
+2019-01-27T22:11:22.303	Customer ID: 524f4421
+2019-01-27T22:11:23.304	Customer URL: http://www.example.com
+big
+gap
+until
+closing
+2020-01-27T22:11:24.305 -- Closing ASCII log --

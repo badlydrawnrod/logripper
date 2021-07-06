@@ -1,6 +1,13 @@
+import datetime
+import dateutil.parser
 import io
 import pathlib
+import re
 import zipfile
+
+# Compile a regular expression that will match an ISO timestamp.
+iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
+iso_re = re.compile(iso)
 
 
 class TextStream:
@@ -8,12 +15,20 @@ class TextStream:
         self.owner = owner
         self.reader = io.TextIOWrapper(self.owner, encoding=encoding)
         self.path = path
-        self.encoding = encoding
         self.current_line = ""
+        self.current_time = None
 
     def peekline(self):
         if len(self.current_line) == 0:
             self.current_line = self.reader.readline()
+            matched = iso_re.match(self.current_line)
+            if matched:
+                start, end = matched.span()
+                self.current_time = dateutil.parser.parse(self.current_line[start:end])
+                self.current_line = self.current_line[end:]
+            else:
+                self.current_time = None
+
         return self.current_line
 
     def readline(self):
@@ -68,16 +83,35 @@ def zip_storage_iterator(parent_path, zf):
 
 
 if __name__ == "__main__":
-    path = pathlib.Path("samples")
+    path = pathlib.Path(".")
 
     text_streams = directory_storage_iterator(path)
 
-    # Advance each stream by one line until no stream can be advanced.
-    read_data = True
-    while read_data:
-        read_data = False
+    # Advance each stream until there are no streams left.
+    while len(text_streams) > 0:
+        # Find the stream with the oldest timestamp, and remove streams that don't have timestamps.
+        oldest = None
+        streams = []
         for stream in text_streams:
-            line = stream.readline()
+            line = stream.peekline()
+            if stream.current_time is not None:
+                streams.append(stream)
+                if oldest is None or stream.current_time < oldest.current_time:
+                    oldest = stream
+        text_streams = streams
+
+        if oldest is not None:
+            line = oldest.readline()
+            ts = oldest.current_time.isoformat()
             if len(line) > 0:
-                print(f"PATH {stream.path} ENCODING {stream.encoding} LINE {line.rstrip()}")
-                read_data = True
+                line = line.strip()
+                print(f"{ts}, {line}, {oldest.path}")
+
+                # Read any lines that don't have a timestamp and account for them as if they're part of the previous
+                # line.
+                line = oldest.peekline()
+                while len(line) > 0 and oldest.current_time is None:
+                    line = oldest.readline()
+                    line = line.strip()
+                    print(f"{ts}, {line}, {oldest.path}")
+                    line = oldest.peekline()
