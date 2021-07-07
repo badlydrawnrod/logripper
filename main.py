@@ -1,3 +1,4 @@
+import argparse
 import io
 import pathlib
 import re
@@ -79,12 +80,15 @@ def recurse(open_fn, full_path, open_token):
     return []
 
 
-def recurse_in_filesystem(filepath):
-    paths = []
-    if filepath.is_file():
-        paths = [filepath]
-    elif filepath.is_dir():
-        paths = sorted(filepath.glob("**/*"))
+def recurse_in_filesystem(filepaths):
+    # Determine up-front which files we're going to look in, and get rid of any duplicates.
+    paths = set()
+    for path in filepaths:
+        if path.is_file():
+            paths.add(path)
+        elif path.is_dir():
+            paths.update(path.glob("**/*"))
+    paths = sorted(paths)
 
     result = []
     for full_path in paths:
@@ -136,6 +140,9 @@ def main(filepath):
 
 
 if __name__ == "__main__":
-    # TODO: specify files / directories on the command line.
-    path = pathlib.Path(".")
-    main(path)
+    parser = argparse.ArgumentParser(description="Chomp through log files")
+    parser.add_argument("paths", metavar="file/dir", type=str, nargs="*", help="filenames or directories to search")
+    args = parser.parse_args()
+
+    paths = [pathlib.Path(p) for p in args.paths]
+    main(paths)
