@@ -9,6 +9,8 @@ import dateutil.parser
 # TODO: handle other time formats.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: add a requirements.txt, or whatever Python uses these days.
+# TODO: better error handling all round.
+# TODO: explicitly close files.
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
@@ -72,15 +74,20 @@ def recurse(open_fn, full_path, open_token):
     elif filename.endswith(".tar"):
         with tarfile.TarFile(open_token()) as f:
             return recurse_in_tar(full_path, f)
-    else:
-        if text_stream := as_text_stream(open_fn, full_path):
-            return [text_stream]
+    elif text_stream := as_text_stream(open_fn, full_path):
+        return [text_stream]
     return []
 
 
-def recurse_in_directory(directory):
+def recurse_in_filesystem(filepath):
+    paths = []
+    if filepath.is_file():
+        paths = [filepath]
+    elif filepath.is_dir():
+        paths = sorted(filepath.glob("**/*"))
+
     result = []
-    for full_path in sorted(directory.glob("**/*")):
+    for full_path in paths:
         if full_path.is_file():
             result.extend(recurse(lambda: open(full_path, "rb"), full_path, lambda: full_path))
     return result
@@ -104,11 +111,10 @@ def recurse_in_tar(parent_path, tf):
 
 if __name__ == "__main__":
     # TODO: specify files / directories on the command line.
-    # TODO: better error handling all round.
 
     path = pathlib.Path(".")
 
-    text_streams = recurse_in_directory(path)
+    text_streams = recurse_in_filesystem(path)
 
     while len(text_streams) > 0:
         # Order the streams by timestamp, removing those that have none.
