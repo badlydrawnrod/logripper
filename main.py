@@ -63,57 +63,42 @@ def as_text_stream(open_fn, full_path):
             return text_stream
 
 
+def recurse(open_fn, full_path, open_token):
+    filename = full_path.name
+    # TODO: remove this hack and go and figure out what the file is.
+    if filename.endswith(".zip"):
+        with zipfile.ZipFile(open_token()) as f:
+            return recurse_in_zip(full_path, f)
+    elif filename.endswith(".tar"):
+        with tarfile.TarFile(open_token()) as f:
+            return recurse_in_tar(full_path, f)
+    else:
+        if text_stream := as_text_stream(open_fn, full_path):
+            return [text_stream]
+    return []
+
+
 def recurse_in_directory(directory):
     result = []
     for full_path in sorted(directory.glob("**/*")):
         if full_path.is_file():
-            # TODO: remove this hack and go and figure out what the file is.
-            filename = full_path.name
-            if filename.endswith(".zip"):
-                with zipfile.ZipFile(full_path) as f:
-                    result.extend(recurse_in_zip(full_path, f))
-            elif filename.endswith(".tar"):
-                with tarfile.TarFile(full_path) as f:
-                    result.extend(recurse_in_tar(full_path, f))
-            else:
-                if text_stream := as_text_stream(lambda: open(full_path, "rb"), full_path):
-                    result.append(text_stream)
+            result.extend(recurse(lambda: open(full_path, "rb"), full_path, lambda: full_path))
     return result
 
 
 def recurse_in_zip(parent_path, zf):
     result = []
     for info in zf.infolist():
-        # TODO: remove this hack and go and figure out what the file is.
         full_path = parent_path / info.filename
-        filename = full_path.name
-        if filename.endswith(".zip"):
-            with zipfile.ZipFile(zf.open(info)) as f:
-                result.extend(recurse_in_zip(full_path, f))
-        elif filename.endswith(".tar"):
-            with tarfile.TarFile(zf.open(info)) as f:
-                result.extend(recurse_in_tar(full_path, f))
-        else:
-            if text_stream := as_text_stream(lambda: zf.open(info), full_path):
-                result.append(text_stream)
+        result.extend(recurse(lambda: zf.open(info), full_path, lambda: zf.open(info)))
     return result
 
 
 def recurse_in_tar(parent_path, tf):
     result = []
     for info in tf.getmembers():
-        # TODO: remove this hack and go and figure out what the file is.
         full_path = parent_path / info.name
-        filename = full_path.name
-        if filename.endswith(".zip"):
-            with zipfile.ZipFile(tf.extractfile(info)) as f:
-                result.extend(recurse_in_zip(full_path, f))
-        elif filename.endswith(".tar"):
-            with tarfile.TarFile(tf.extractfile(info)) as f:
-                result.extend(recurse_in_tar(full_path, f))
-        else:
-            if text_stream := as_text_stream(lambda: tf.extractfile(info), full_path):
-                result.append(text_stream)
+        result.extend(recurse(lambda: tf.extractfile(info), full_path, lambda: tf.extractfile(info)))
     return result
 
 
