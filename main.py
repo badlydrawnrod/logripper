@@ -109,12 +109,8 @@ def recurse_in_tar(parent_path, tf):
     return result
 
 
-if __name__ == "__main__":
-    # TODO: specify files / directories on the command line.
-
-    path = pathlib.Path(".")
-
-    text_streams = recurse_in_filesystem(path)
+def main(filepath):
+    text_streams = recurse_in_filesystem(filepath)
 
     while len(text_streams) > 0:
         # Order the streams by timestamp, removing those that have none.
@@ -137,3 +133,9 @@ if __name__ == "__main__":
                 line = line.strip()
                 print(f"{timestamp}, {line}, {oldest.path}")
                 line = oldest.peekline()
+
+
+if __name__ == "__main__":
+    # TODO: specify files / directories on the command line.
+    path = pathlib.Path(".")
+    main(path)
