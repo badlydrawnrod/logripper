@@ -64,7 +64,9 @@ def recurse_in_directory(path):
                 with tarfile.TarFile(full_path) as f:
                     result.extend(recurse_in_tar(full_path, f))
             else:
-                open_fn = lambda: open(full_path, "rb")
+                def open_fn():
+                    return open(full_path, "rb")
+
                 if encoding := guess_encoding(open_fn):
                     text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
                     if text_stream.current_time is not None:
@@ -84,7 +86,9 @@ def recurse_in_zip(parent_path, zf):
             with tarfile.TarFile(zf.open(info)) as f:
                 result.extend(recurse_in_tar(full_path, f))
         else:
-            open_fn = lambda: zf.open(info)
+            def open_fn():
+                return zf.open(info)
+
             if encoding := guess_encoding(open_fn):
                 text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
                 if text_stream.current_time is not None:
@@ -104,7 +108,9 @@ def recurse_in_tar(parent_path, tf):
             with tarfile.TarFile(tf.extractfile(info)) as f:
                 result.extend(recurse_in_tar(full_path, f))
         else:
-            open_fn = lambda: tf.extractfile(info)
+            def open_fn():
+                return tf.extractfile(info)
+
             if encoding := guess_encoding(open_fn):
                 text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
                 if text_stream.current_time is not None:
