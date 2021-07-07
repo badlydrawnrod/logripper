@@ -6,6 +6,10 @@ import zipfile
 
 import dateutil.parser
 
+# TODO: handle other time formats.
+# TODO: associate the time format with the stream so that we don't have to keep working it out.
+# TODO: add a requirements.txt, or whatever Python uses these days.
+
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
 iso_re = re.compile(iso)
@@ -52,25 +56,28 @@ def guess_encoding(open_fn, lines=10):
                 continue
 
 
-def recurse_in_directory(path):
+def as_text_stream(open_fn, full_path):
+    if encoding := guess_encoding(open_fn):
+        text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
+        if text_stream.current_time is not None:
+            return text_stream
+
+
+def recurse_in_directory(directory):
     result = []
-    for full_path in sorted(path.glob("**/*")):
+    for full_path in sorted(directory.glob("**/*")):
         if full_path.is_file():
             # TODO: remove this hack and go and figure out what the file is.
-            if str(full_path).endswith(".zip"):
+            filename = full_path.name
+            if filename.endswith(".zip"):
                 with zipfile.ZipFile(full_path) as f:
                     result.extend(recurse_in_zip(full_path, f))
-            elif str(full_path).endswith(".tar"):
+            elif filename.endswith(".tar"):
                 with tarfile.TarFile(full_path) as f:
                     result.extend(recurse_in_tar(full_path, f))
             else:
-                def open_fn():
-                    return open(full_path, "rb")
-
-                if encoding := guess_encoding(open_fn):
-                    text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
-                    if text_stream.current_time is not None:
-                        result.append(text_stream)
+                if text_stream := as_text_stream(lambda: open(full_path, "rb"), full_path):
+                    result.append(text_stream)
     return result
 
 
@@ -79,20 +86,16 @@ def recurse_in_zip(parent_path, zf):
     for info in zf.infolist():
         # TODO: remove this hack and go and figure out what the file is.
         full_path = parent_path / info.filename
-        if info.filename.endswith(".zip"):
+        filename = full_path.name
+        if filename.endswith(".zip"):
             with zipfile.ZipFile(zf.open(info)) as f:
                 result.extend(recurse_in_zip(full_path, f))
-        elif info.filename.endswith(".tar"):
+        elif filename.endswith(".tar"):
             with tarfile.TarFile(zf.open(info)) as f:
                 result.extend(recurse_in_tar(full_path, f))
         else:
-            def open_fn():
-                return zf.open(info)
-
-            if encoding := guess_encoding(open_fn):
-                text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
-                if text_stream.current_time is not None:
-                    result.append(text_stream)
+            if text_stream := as_text_stream(lambda: zf.open(info), full_path):
+                result.append(text_stream)
     return result
 
 
@@ -101,20 +104,16 @@ def recurse_in_tar(parent_path, tf):
     for info in tf.getmembers():
         # TODO: remove this hack and go and figure out what the file is.
         full_path = parent_path / info.name
-        if info.name.endswith(".zip"):
+        filename = full_path.name
+        if filename.endswith(".zip"):
             with zipfile.ZipFile(tf.extractfile(info)) as f:
                 result.extend(recurse_in_zip(full_path, f))
-        elif info.name.endswith(".tar"):
+        elif filename.endswith(".tar"):
             with tarfile.TarFile(tf.extractfile(info)) as f:
                 result.extend(recurse_in_tar(full_path, f))
         else:
-            def open_fn():
-                return tf.extractfile(info)
-
-            if encoding := guess_encoding(open_fn):
-                text_stream = TextStream(io.BufferedReader(open_fn()), full_path, encoding)
-                if text_stream.current_time is not None:
-                    result.append(text_stream)
+            if text_stream := as_text_stream(lambda: tf.extractfile(info), full_path):
+                result.append(text_stream)
     return result
 
 
