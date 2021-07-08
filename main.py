@@ -94,9 +94,15 @@ def as_tar(open_token):
 
 def recurse(open_fn, full_path, open_token):
     if f := as_zip(open_token):
-        return recurse_in_zip(full_path, f)
+        try:
+            return recurse_in_zip(full_path, f)
+        finally:
+            f.close()
     elif f := as_tar(open_token):
-        return recurse_in_tar(full_path, f)
+        try:
+            return recurse_in_tar(full_path, f)
+        finally:
+            f.close()
     elif text_stream := as_text_stream(open_fn, full_path):
         return [text_stream]
     return []
