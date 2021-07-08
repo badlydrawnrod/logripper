@@ -1,3 +1,6 @@
+This is a header line that has no timestamp.
+So is this.
+Lines above the first timestamp should be ignored.
 2017-01-27T22:11:20.300	-- Opening ASCII log --
 This line doesn't have a timestamp.
 2019-01-27T22:11:21.302	ASCII Log Program version 3.74

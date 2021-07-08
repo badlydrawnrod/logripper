@@ -1,5 +1,6 @@
 import argparse
 import io
+import logging
 import pathlib
 import re
 import tarfile
@@ -7,9 +8,12 @@ import zipfile
 
 import dateutil.parser
 
+# TODO: consider making the iteration over the filesystem work like all other iteration?
 # TODO: handle other time formats.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
-# TODO: better error handling all round.
+# TODO: better error handling all round (e.g., if a zip file has an unsupported compression method).
+# TODO: log what it's doing.
+# TODO: allow the user to ignore paths completely.
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
@@ -17,13 +21,18 @@ iso_re = re.compile(iso)
 
 
 class LogStream:
-    def __init__(self, owner, path, encoding):
+    def __init__(self, owner, path, encoding, lines=10):
         self.reader = io.TextIOWrapper(owner, encoding=encoding)
         self.path = path
         self.current_line = ""
         self.current_time = None
-        # TODO: read ahead a little, in case this stream has headers that don't have timestamps.
+
+        # Look for a line starting with a timestamp in the first few lines of the stream.
         self.peekline()
+        while len(self.current_line) > 0 and self.current_time is None and lines > 0:
+            self.readline()
+            self.peekline()
+            lines -= 1
 
     def peekline(self):
         if len(self.current_line) == 0:
@@ -95,16 +104,21 @@ def open_as_tar(open_token):
 def recurse(open_fn, full_path, open_token):
     if f := open_as_zip(open_token):
         try:
+            logging.info(f"processing zip file {full_path}")
             return recurse_in_zip(full_path, f)
         finally:
             f.close()
     elif f := open_as_tar(open_token):
         try:
+            logging.info(f"processing tar file {full_path}")
             return recurse_in_tar(full_path, f)
         finally:
             f.close()
     elif stream := open_as_log(open_fn, full_path):
+        logging.info(f"found log file {full_path}")
         return [stream]
+    else:
+        logging.debug(f"ignoring {full_path}")
     return []
 
 
@@ -136,7 +150,9 @@ def recurse_in_filesystem(filepaths):
 
     result = []
     for full_path in paths:
-        if full_path.is_file():
+        if full_path.is_dir():
+            logging.info(f"processing directory {full_path}")
+        elif full_path.is_file():
             result.extend(recurse(lambda: open(full_path, "rb"), full_path, lambda: full_path))
     return result
 
@@ -147,6 +163,7 @@ def remove_finished_streams(streams):
         if stream.peekline() and stream.current_time is not None:
             result.append(stream)
         else:
+            logging.info(f"Closing {stream.path}")
             stream.close()
     result.sort(key=lambda s: s.current_time)
     return result
@@ -177,8 +194,13 @@ def main(filepaths):
 
 
 if __name__ == "__main__":
+    # Enable basic logging.
+    logging.basicConfig(level=logging.INFO)
+
+    # Parse the command line.
     parser = argparse.ArgumentParser(description="Chomp through log files.")
     parser.add_argument("paths", metavar="file/dir", type=str, nargs="*", help="filenames or directories to search")
     args = parser.parse_args()
 
+    # Examine the logs, in timeline order.
     main(pathlib.Path(p) for p in args.paths)
