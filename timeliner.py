@@ -9,7 +9,6 @@ import dateutil.parser
 
 # TODO: handle other time formats.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
-# TODO: add a requirements.txt, or whatever Python uses these days.
 # TODO: better error handling all round.
 # TODO: add a licence.
 
