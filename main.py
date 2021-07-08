@@ -48,15 +48,21 @@ class TextStream:
 
 def guess_encoding(open_fn, lines=10):
     encodings = ["utf-16", "utf-8", "ascii"]
-    for e in encodings:
-        with open_fn() as f:
-            try:
-                with io.BufferedReader(f) as bf:
-                    wrapper = io.TextIOWrapper(bf, encoding=e)
-                    wrapper.readlines(lines)
-                    return e
-            except UnicodeError:
-                continue
+    try:
+        for e in encodings:
+            with open_fn() as f:
+                try:
+                    with io.BufferedReader(f) as bf:
+                        wrapper = io.TextIOWrapper(bf, encoding=e)
+                        wrapper.readlines(lines)
+                        return e
+                except UnicodeError:
+                    continue
+    except AttributeError as e:
+        if str(e) != "__enter__":
+            raise
+        # If we get here then open_fn() returned most likely returned None. This can happen, e.g., when looking in a
+        # tar file for which there is an entry, but nothing extractable for that entry.
 
 
 def as_text_stream(open_fn, full_path):
@@ -68,12 +74,12 @@ def as_text_stream(open_fn, full_path):
 
 def recurse(open_fn, full_path, open_token):
     filename = full_path.name
-    # TODO: remove this hack and go and figure out what the file is.
+    # Ideally we'd use more than the extension to determine the file type.
     if filename.endswith(".zip"):
         with zipfile.ZipFile(open_token()) as f:
             return recurse_in_zip(full_path, f)
-    elif filename.endswith(".tar"):
-        with tarfile.TarFile(open_token()) as f:
+    elif filename.endswith(".tar") or filename.endswith(".tar.gz"):
+        with tarfile.open(open_token()) as f:
             return recurse_in_tar(full_path, f)
     elif text_stream := as_text_stream(open_fn, full_path):
         return [text_stream]
