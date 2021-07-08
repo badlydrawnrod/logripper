@@ -8,11 +8,11 @@ import zipfile
 
 import dateutil.parser
 
-# TODO: consider making the iteration over the filesystem work like all other iteration?
+# TODO: allow the loglevel to be set on the command line.
+# TODO: publish on GitHub.
 # TODO: handle other time formats.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: better error handling all round (e.g., if a zip file has an unsupported compression method).
-# TODO: log what it's doing.
 # TODO: allow the user to ignore paths completely.
 
 # Compile a regular expression that will match an ISO timestamp.
@@ -75,16 +75,27 @@ def guess_encoding(open_fn, lines=10):
 
 
 def open_as_log(open_fn, full_path):
-    if encoding := guess_encoding(open_fn):
-        stream = LogStream(io.BufferedReader(open_fn()), full_path, encoding)
-        if stream.current_time is not None:
-            return stream
+    try:
+        if encoding := guess_encoding(open_fn):
+            stream = LogStream(io.BufferedReader(open_fn()), full_path, encoding)
+            if stream.current_time is not None:
+                return stream
+    except zipfile.BadZipfile:
+        pass
+    except tarfile.TarError:
+        pass
+    except NotImplementedError:
+        pass
 
 
 def open_as_zip(open_token):
     try:
         return zipfile.ZipFile(open_token())
     except zipfile.BadZipfile:
+        pass
+    except tarfile.TarError:
+        pass
+    except NotImplementedError:
         pass
     except AttributeError:
         pass
@@ -93,7 +104,11 @@ def open_as_zip(open_token):
 def open_as_tar(open_token):
     try:
         return tarfile.open(open_token())
+    except zipfile.BadZipfile:
+        pass
     except tarfile.TarError:
+        pass
+    except NotImplementedError:
         pass
     except TypeError:
         pass
@@ -195,7 +210,7 @@ def main(filepaths):
 
 if __name__ == "__main__":
     # Enable basic logging.
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
 
     # Parse the command line.
     parser = argparse.ArgumentParser(description="Chomp through log files.")
