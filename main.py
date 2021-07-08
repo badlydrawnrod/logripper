@@ -72,15 +72,31 @@ def as_text_stream(open_fn, full_path):
             return text_stream
 
 
+def as_zip(open_token):
+    try:
+        return zipfile.ZipFile(open_token())
+    except zipfile.BadZipfile:
+        pass
+    except AttributeError:
+        pass
+
+
+def as_tar(open_token):
+    try:
+        return tarfile.open(open_token())
+    except tarfile.TarError:
+        pass
+    except TypeError:
+        pass
+    except ValueError:
+        pass
+
+
 def recurse(open_fn, full_path, open_token):
-    filename = full_path.name
-    # Ideally we'd use more than the extension to determine the file type.
-    if filename.endswith(".zip"):
-        with zipfile.ZipFile(open_token()) as f:
-            return recurse_in_zip(full_path, f)
-    elif filename.endswith(".tar") or filename.endswith(".tar.gz"):
-        with tarfile.open(open_token()) as f:
-            return recurse_in_tar(full_path, f)
+    if f := as_zip(open_token):
+        return recurse_in_zip(full_path, f)
+    elif f := as_tar(open_token):
+        return recurse_in_tar(full_path, f)
     elif text_stream := as_text_stream(open_fn, full_path):
         return [text_stream]
     return []
