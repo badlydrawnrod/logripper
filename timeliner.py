@@ -10,7 +10,6 @@ import dateutil.parser
 # TODO: handle other time formats.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: better error handling all round.
-# TODO: add a licence.
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
@@ -153,24 +152,28 @@ def remove_finished_streams(streams):
     return result
 
 
-def main(filepaths):
-    streams = recurse_in_filesystem(filepaths)
-
+def iterate_through_logs(streams):
     while streams := remove_finished_streams(streams):
         oldest = streams[0]
         line = oldest.readline()
         timestamp = oldest.current_time.isoformat()
         line = line.strip()
-        print(f"{timestamp}, {line}, {oldest.path}")
+        yield timestamp, line, oldest.path
 
         # Read any lines from the oldest stream that don't have a timestamp and output them as if they have the same
         # timestamp as the previous line.
         line = oldest.peekline()
         while len(line) > 0 and oldest.current_time is None:
             line = oldest.readline()
-            line = line.strip()
-            print(f"{timestamp}, {line}, {oldest.path}")
+            yield timestamp, line, oldest.path
             line = oldest.peekline()
+
+
+def main(filepaths):
+    streams = recurse_in_filesystem(filepaths)
+    for timestamp, line, path in iterate_through_logs(streams):
+        line = line.strip()
+        print(f"{timestamp}, {line}, {path}")
 
 
 if __name__ == "__main__":
