@@ -9,18 +9,18 @@ import zipfile
 
 import dateutil.parser
 
-# TODO: give it a memorable name - "logripper" sounds about right.
 # TODO: customise the output format
 #   e.g.
 #   - display / don't display timestamps
 #   - display / don't display paths
 #   - output as CSV
 #   - ignore files that match a pattern
-#   + filter by timestamp
+# TODO: output special text for certain file patterns (e.g., if you know that something is a particular file then it
+#   might be useful to say so.
 # TODO: allow the user to ignore paths completely.
 # TODO: allow the loglevel to be set on the command line.
 # TODO: publish on GitHub.
-# TODO: handle other time formats.
+# TODO: handle other (non ISO) time formats when parsing.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: better error handling all round (e.g., if a zip file has an unsupported compression method).
 # TODO: faster, better, timestamp filtering.
@@ -31,8 +31,8 @@ iso_re = re.compile(iso)
 
 
 class LogStream:
-    def __init__(self, owner, path, encoding, lines=10):
-        self.reader = io.TextIOWrapper(owner, encoding=encoding)
+    def __init__(self, stream, path, encoding, lines=10):
+        self.reader = io.TextIOWrapper(stream, encoding=encoding)
         self.path = path
         self.current_line = ""
         self.current_time = None
@@ -71,8 +71,8 @@ def guess_encoding(open_fn, lines=10):
         for e in encodings:
             with open_fn() as f:
                 try:
-                    with io.BufferedReader(f) as bf:
-                        wrapper = io.TextIOWrapper(bf, encoding=e)
+                    with io.BufferedReader(f) as br:
+                        wrapper = io.TextIOWrapper(br, encoding=e)
                         wrapper.readlines(lines)
                         return e
                 except UnicodeError:
@@ -211,12 +211,12 @@ def iterate_through_logs(streams):
             line = oldest.peekline()
 
 
-def main(filepaths, start_time, end_time):
+def rip(filepaths, start_time, end_time):
     streams = recurse_in_filesystem(filepaths)
     for timestamp, line, path in iterate_through_logs(streams):
         line = line.strip()
         timestamp = dateutil.parser.parse(timestamp)
-        if timestamp >= start_time and timestamp < end_time:
+        if start_time <= timestamp < end_time:
             print(f"{timestamp}, {line}, {path}")
 
 
@@ -241,4 +241,4 @@ if __name__ == "__main__":
     args.paths = args.paths if args.paths else ["."]
 
     # Examine the logs, in timeline order.
-    main((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time)
+    rip((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time)
