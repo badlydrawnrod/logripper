@@ -24,10 +24,33 @@ import dateutil.parser
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: better error handling all round (e.g., if a zip file has an unsupported compression method).
 # TODO: faster, better, timestamp filtering.
+# TODO: let the user pick the default timezone if none is given (currently defaults to local timezone, but UTC might be
+#   a better option in many circumstances.
+
+# Date ranges.
+min_date = datetime.datetime(datetime.MINYEAR, 1, 1, tzinfo=datetime.timezone.utc)
+max_date = datetime.datetime(datetime.MAXYEAR, 12, 31, 23, 59, tzinfo=datetime.timezone.utc)
+
+# Default timezone.
+default_tz = None
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
 iso_re = re.compile(iso)
+
+# If we attempt to open a stream and get one of these exceptions then we just abandon that stream and move on.
+non_fatal_exceptions = (
+    zipfile.BadZipfile,
+    tarfile.TarError,
+    NotImplementedError,
+    TypeError,
+    ValueError,
+    AttributeError
+)
+
+
+def parse_date(s):
+    return dateutil.parser.parse(s).astimezone(tz=default_tz)
 
 
 class LogStream:
@@ -49,7 +72,7 @@ class LogStream:
             self.current_line = self.reader.readline()
             if matched := iso_re.match(self.current_line):
                 start, end = matched.span()
-                self.current_time = dateutil.parser.isoparse(self.current_line[start:end])
+                self.current_time = parse_date(self.current_line[start:end])
                 self.current_line = self.current_line[end:]
             else:
                 self.current_time = None
@@ -90,39 +113,21 @@ def open_as_log(open_fn, full_path):
             stream = LogStream(io.BufferedReader(open_fn()), full_path, encoding)
             if stream.current_time is not None:
                 return stream
-    except zipfile.BadZipfile:
-        pass
-    except tarfile.TarError:
-        pass
-    except NotImplementedError:
+    except non_fatal_exceptions:
         pass
 
 
 def open_as_zip(open_token):
     try:
         return zipfile.ZipFile(open_token())
-    except zipfile.BadZipfile:
-        pass
-    except tarfile.TarError:
-        pass
-    except NotImplementedError:
-        pass
-    except AttributeError:
+    except non_fatal_exceptions:
         pass
 
 
 def open_as_tar(open_token):
     try:
         return tarfile.open(open_token())
-    except zipfile.BadZipfile:
-        pass
-    except tarfile.TarError:
-        pass
-    except NotImplementedError:
-        pass
-    except TypeError:
-        pass
-    except ValueError:
+    except non_fatal_exceptions:
         pass
 
 
@@ -215,7 +220,7 @@ def rip(filepaths, start_time, end_time):
     streams = recurse_in_filesystem(filepaths)
     for timestamp, line, path in iterate_through_logs(streams):
         line = line.strip()
-        timestamp = dateutil.parser.parse(timestamp)
+        timestamp = parse_date(timestamp)
         if start_time <= timestamp < end_time:
             print(f"{timestamp}, {line}, {path}")
 
@@ -236,8 +241,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Turn the parsed args into a configuration that we can understand.
-    args.start_time = dateutil.parser.parse(args.start_time) if args.start_time else datetime.datetime.fromtimestamp(0)
-    args.end_time = dateutil.parser.parse(args.end_time) if args.end_time else datetime.datetime(9999, 12, 31, 23, 59)
+    args.start_time = parse_date(args.start_time) if args.start_time else min_date
+    args.end_time = parse_date(args.end_time) if args.end_time else max_date
     args.paths = args.paths if args.paths else ["."]
 
     # Examine the logs, in timeline order.

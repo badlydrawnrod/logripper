@@ -1,6 +1,7 @@
 This is a header line that has no timestamp.
 So is this.
 Lines above the first timestamp should be ignored.
+2004-09-24 07:10:48+00:00 This one broke the comparison until I fixed it.
 2017-01-27T22:11:20.300	-- Opening ASCII log --
 This line doesn't have a timestamp.
 2019-01-27T22:11:21.302	ASCII Log Program version 3.74
@@ -10,5 +11,6 @@ big
 gap
 until
 closing
-2020-01-27T22:11:24.305 -- Closing ASCII log --
+2020-01-27T22:11:24.305 Still in GMT.
+2020-04-30T22:11:24.305 -- Closing ASCII log --
 Trailing stuff
