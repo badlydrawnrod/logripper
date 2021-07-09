@@ -14,18 +14,23 @@ import dateutil.parser
 #   - display / don't display timestamps
 #   - display / don't display paths
 #   - output as CSV
-#   - ignore files that match a pattern
+# TODO: ignore files that match a pattern.
+# TODO: ignore filetypes (e.g, don't descend into zips).
+# TODO: make it extensible in terms of archive formats, etc, that it can handle (by registering handlers for filetypes).
 # TODO: output special text for certain file patterns (e.g., if you know that something is a particular file then it
 #   might be useful to say so.
-# TODO: allow the user to ignore paths completely.
-# TODO: allow the loglevel to be set on the command line.
+# TODO: allow the loglevel to be set via the command line.
 # TODO: publish on GitHub.
+# TODO: add a README.md.
+# TODO: publish on PyPI.
 # TODO: handle other (non ISO) time formats when parsing.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: better error handling all round (e.g., if a zip file has an unsupported compression method).
 # TODO: faster, better, timestamp filtering.
 # TODO: let the user pick the default timezone if none is given (currently defaults to local timezone, but UTC might be
 #   a better option in many circumstances.
+# TODO: allow the user to register handlers for events, e.g., on log line found, on file found, etc.
+# TODO: allow actions when a line is output, e.g., if the line contains XXX then print YYY above it.
 
 # Date ranges.
 min_date = datetime.datetime(datetime.MINYEAR, 1, 1, tzinfo=datetime.timezone.utc)
