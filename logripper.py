@@ -15,7 +15,6 @@ import dateutil.parser
 #   - display / don't display paths
 #   - output as CSV
 # TODO: ignore files that match a pattern.
-# TODO: ignore filetypes (e.g, don't descend into zips).
 # TODO: make it extensible in terms of archive formats, etc, that it can handle (by registering handlers for filetypes).
 # TODO: output special text for certain file patterns (e.g., if you know that something is a particular file then it
 #   might be useful to say so.
@@ -31,6 +30,8 @@ import dateutil.parser
 #   a better option in many circumstances.
 # TODO: allow the user to register handlers for events, e.g., on log line found, on file found, etc.
 # TODO: allow actions when a line is output, e.g., if the line contains XXX then print YYY above it.
+# TODO: restrict file timestamps to a particular range, e.g., ignore files created before last year or that are less
+#   than 3 months old.
 
 # Date ranges.
 min_date = datetime.datetime(datetime.MINYEAR, 1, 1, tzinfo=datetime.timezone.utc)
@@ -52,6 +53,8 @@ non_fatal_exceptions = (
     ValueError,
     AttributeError
 )
+
+archive_handlers = []
 
 
 def parse_date(s):
@@ -137,23 +140,19 @@ def open_as_tar(open_token):
 
 
 def recurse(open_fn, full_path, open_token):
-    if f := open_as_zip(open_token):
-        try:
-            logging.info(f"processing zip file {full_path}")
-            return recurse_in_zip(full_path, f)
-        finally:
-            f.close()
-    elif f := open_as_tar(open_token):
-        try:
-            logging.info(f"processing tar file {full_path}")
-            return recurse_in_tar(full_path, f)
-        finally:
-            f.close()
-    elif stream := open_as_log(open_fn, full_path):
+    for filetype, opener, actor in archive_handlers:
+        if f := opener(open_token):
+            try:
+                logging.info(f"processing {filetype} file {full_path}")
+                return actor(full_path, f)
+            finally:
+                f.close()
+
+    if stream := open_as_log(open_fn, full_path):
         logging.info(f"found log file {full_path}")
         return [stream]
-    else:
-        logging.debug(f"ignoring {full_path}")
+
+    logging.debug(f"ignoring {full_path}")
     return []
 
 
@@ -232,23 +231,42 @@ def rip(filepaths, start_time, end_time):
 
 if __name__ == "__main__":
     # Enable basic logging.
-    logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
+    logging.basicConfig(level=logging.WARN, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
 
     # Parse the command line.
-    parser = argparse.ArgumentParser(prog="python -m logripper", description="Rip through log files in time order.")
-    parser.add_argument("--from", "--starttime",
-                        dest="start_time", metavar="<timestamp>", type=str, action="store",
-                        help="the timestamp to display from. Lines before this time will not be displayed.")
-    parser.add_argument("--to", "--endtime",
-                        dest="end_time", metavar="<timestamp>", type=str, action="store",
-                        help="the timestamp to display until. Lines from this time on will not be displayed.")
+    parser = argparse.ArgumentParser(prog="python -m logripper", description="Rip through log files in time order.",
+                                     epilog="Happy ripping.")
+
+    time_group = parser.add_argument_group("time related arguments")
+
+    time_group.add_argument("--time-from", "--from", "--starttime",
+                            dest="start_time", metavar="<timestamp>", type=str, action="store",
+                            help="the timestamp to display from. Lines before this time will not be displayed.")
+    time_group.add_argument("--time-to", "--to", "--endtime",
+                            dest="end_time", metavar="<timestamp>", type=str, action="store",
+                            help="the timestamp to display until. Lines from this time onward will not be displayed.")
+
+    archive_group = parser.add_argument_group("archive handling")
+    archive_group.add_argument("--tars", metavar="yes|no", dest="tars", choices=["yes", "no"], default="yes",
+                               help="descend into tar files (default=yes)")
+
+    archive_group.add_argument("--zips", metavar="yes|no", dest="zips", choices=["yes", "no"], default="yes",
+                               help="descend into zips (default=yes)")
+
     parser.add_argument("paths", metavar="<file|dir>", type=str, nargs="*", help="files or directories to search")
+
     args = parser.parse_args()
 
     # Turn the parsed args into a configuration that we can understand.
     args.start_time = parse_date(args.start_time) if args.start_time else min_date
     args.end_time = parse_date(args.end_time) if args.end_time else max_date
     args.paths = args.paths if args.paths else ["."]
+
+    # Register archive handlers.
+    if args.zips == "yes":
+        archive_handlers.append(("zip", open_as_zip, recurse_in_zip))
+    if args.tars == "yes":
+        archive_handlers.append(("tar", open_as_tar, recurse_in_tar))
 
     # Examine the logs, in timeline order.
     rip((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time)
