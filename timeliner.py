@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import io
 import logging
 import pathlib
@@ -8,12 +9,21 @@ import zipfile
 
 import dateutil.parser
 
+# TODO: give it a memorable name - "logripper" sounds about right.
+# TODO: customise the output format
+#   e.g.
+#   - display / don't display timestamps
+#   - display / don't display paths
+#   - output as CSV
+#   - ignore files that match a pattern
+#   + filter by timestamp
+# TODO: allow the user to ignore paths completely.
 # TODO: allow the loglevel to be set on the command line.
 # TODO: publish on GitHub.
 # TODO: handle other time formats.
 # TODO: associate the time format with the stream so that we don't have to keep working it out.
 # TODO: better error handling all round (e.g., if a zip file has an unsupported compression method).
-# TODO: allow the user to ignore paths completely.
+# TODO: faster, better, timestamp filtering.
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
@@ -201,21 +211,34 @@ def iterate_through_logs(streams):
             line = oldest.peekline()
 
 
-def main(filepaths):
+def main(filepaths, start_time, end_time):
     streams = recurse_in_filesystem(filepaths)
     for timestamp, line, path in iterate_through_logs(streams):
         line = line.strip()
-        print(f"{timestamp}, {line}, {path}")
+        timestamp = dateutil.parser.parse(timestamp)
+        if timestamp >= start_time and timestamp < end_time:
+            print(f"{timestamp}, {line}, {path}")
 
 
 if __name__ == "__main__":
     # Enable basic logging.
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
+    logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
 
     # Parse the command line.
-    parser = argparse.ArgumentParser(description="Chomp through log files.")
-    parser.add_argument("paths", metavar="file/dir", type=str, nargs="*", help="filenames or directories to search")
+    parser = argparse.ArgumentParser(prog="python -m logripper", description="Rip through log files in time order.")
+    parser.add_argument("--from", "--starttime",
+                        dest="start_time", metavar="<timestamp>", type=str, action="store",
+                        help="the timestamp to display from. Lines before this time will not be displayed.")
+    parser.add_argument("--to", "--endtime",
+                        dest="end_time", metavar="<timestamp>", type=str, action="store",
+                        help="the timestamp to display until. Lines from this time on will not be displayed.")
+    parser.add_argument("paths", metavar="<file|dir>", type=str, nargs="*", help="files or directories to search")
     args = parser.parse_args()
 
+    # Turn the parsed args into a configuration that we can understand.
+    args.start_time = dateutil.parser.parse(args.start_time) if args.start_time else datetime.datetime.fromtimestamp(0)
+    args.end_time = dateutil.parser.parse(args.end_time) if args.end_time else datetime.datetime(9999, 12, 31, 23, 59)
+    args.paths = args.paths if args.paths else ["."]
+
     # Examine the logs, in timeline order.
-    main(pathlib.Path(p) for p in args.paths)
+    main((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time)
