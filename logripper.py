@@ -253,13 +253,14 @@ def iterate_through_logs(streams):
             line = oldest.peekline()
 
 
-def rip(filepaths, start_time, end_time):
+def rip(filepaths, start_time, end_time, output_as_utc):
     streams = recurse_in_filesystem(filepaths)
     for timestamp, line, path in iterate_through_logs(streams):
         line = line.strip()
         timestamp = parse_date(timestamp)
         if start_time <= timestamp < end_time:
-            print(f"{timestamp}, {line}, {path}")
+            output_timestamp = timestamp.astimezone(datetime.timezone.utc) if output_as_utc else timestamp
+            print(f"{output_timestamp}, {line}, {path}")
 
 
 def parse_command_line():
@@ -267,8 +268,8 @@ def parse_command_line():
     parser = argparse.ArgumentParser(prog="python -m logripper", description="Rip through log files in time order.",
                                      epilog="Happy ripping.")
 
-    # Time-related arguments.
-    time_group = parser.add_argument_group("time related arguments")
+    # Filtering by time.
+    time_group = parser.add_argument_group("filtering by time")
     time_group.add_argument("--time-from", "--from", "--starttime",
                             dest="start_time", metavar="<timestamp>", type=str, action="store",
                             help="the timestamp to display from. Lines before this time will not be displayed.")
@@ -288,6 +289,11 @@ def parse_command_line():
                                help="descend into tar files (default=yes).")
     archive_group.add_argument("--zips", metavar="yes|no", dest="zips", choices=["yes", "no"], default="yes",
                                help="descend into zips (default=yes)")
+
+    # Output behaviour.
+    output_group = parser.add_argument_group("output")
+    output_group.add_argument("--utc", metavar="yes|no", dest="output_as_utc", choices=["yes", "no"], default="yes",
+                              help="output timestamps as UTC (default=yes)")
 
     # The paths to inspect for log files.
     parser.add_argument("paths", metavar="<file|dir>", type=str, nargs="*", help="files or directories to search")
@@ -316,8 +322,11 @@ if __name__ == "__main__":
         for item in args.ignored:
             ignore_list.append(item)
 
+    # Should we output as UTC or in the local timezone?
+    output_as_utc = args.output_as_utc == "yes"
+
     # Default to the current directory if no paths were specified.
     args.paths = args.paths if args.paths else ["."]
 
     # Examine the logs, in timeline order.
-    rip((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time)
+    rip((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time, output_as_utc)
