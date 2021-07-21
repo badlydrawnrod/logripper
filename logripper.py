@@ -28,7 +28,6 @@ import dateutil.parser
 
 # TODO: let the user pick the default timezone if none is given (currently defaults to local timezone, but UTC might be
 #   a better option in many circumstances.
-# TODO: let the user pick the output timezone (currently defaults to local timezone).
 # TODO: customise the output format
 #   e.g.
 #   - display / don't display timestamps
