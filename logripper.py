@@ -95,7 +95,8 @@ class LogStream:
         if len(self.current_line) == 0:
             self.current_line = self.reader.readline()
             # Use search() instead of match() as the timestamp may not be the first thing on the line.
-            if matched := iso_re.search(self.current_line):
+            matched = iso_re.search(self.current_line)
+            if matched:
                 start, end = matched.span()
                 self.current_time = parse_date(self.current_line[start:end])
                 self.current_line = self.current_line[end:]
@@ -134,7 +135,8 @@ def guess_encoding(open_fn, lines=10):
 
 def open_as_log(open_fn, full_path):
     try:
-        if encoding := guess_encoding(open_fn):
+        encoding = guess_encoding(open_fn)
+        if encoding:
             stream = LogStream(io.BufferedReader(open_fn()), full_path, encoding)
             if stream.current_time is not None:
                 return stream
@@ -161,14 +163,16 @@ def recurse(open_fn, full_path, open_token):
         return []
 
     for filetype, opener, actor in archive_handlers:
-        if f := opener(open_token):
+        f = opener(open_token)
+        if f:
             try:
                 logging.info(f"processing {filetype} file {full_path}")
                 return actor(full_path, f)
             finally:
                 f.close()
 
-    if stream := open_as_log(open_fn, full_path):
+    stream = open_as_log(open_fn, full_path)
+    if stream:
         logging.info(f"found log file {full_path}")
         return [stream]
 
@@ -233,7 +237,8 @@ def remove_finished_streams(streams):
 
 
 def iterate_through_logs(streams):
-    while streams := remove_finished_streams(streams):
+    streams = remove_finished_streams(streams)
+    while streams:
         oldest = streams[0]
         line = oldest.readline()
         timestamp = oldest.current_time.isoformat()
@@ -247,6 +252,8 @@ def iterate_through_logs(streams):
             line = oldest.readline()
             yield timestamp, line, oldest.path
             line = oldest.peekline()
+
+        streams = remove_finished_streams(streams)
 
 
 def rip(filepaths, start_time, end_time):
