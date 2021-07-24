@@ -26,8 +26,6 @@ import zipfile
 
 import dateutil.parser
 
-# TODO: let the user pick the default timezone if none is given (currently defaults to local timezone, but UTC might be
-#   a better option in many circumstances.
 # TODO: customise the output format
 #   e.g.
 #   - display / don't display timestamps
@@ -140,22 +138,22 @@ def open_as_log(open_fn, full_path):
             stream = LogStream(io.BufferedReader(open_fn()), full_path, encoding)
             if stream.current_time is not None:
                 return stream
-    except non_fatal_exceptions:
-        pass
+    except non_fatal_exceptions as e:
+        logging.debug(e)
 
 
 def open_as_zip(open_token):
     try:
         return zipfile.ZipFile(open_token())
-    except non_fatal_exceptions:
-        pass
+    except non_fatal_exceptions as e:
+        logging.debug(e)
 
 
 def open_as_tar(open_token):
     try:
         return tarfile.open(open_token())
-    except non_fatal_exceptions:
-        pass
+    except non_fatal_exceptions as e:
+        logging.debug(e)
 
 
 def recurse(open_fn, full_path, open_token):
@@ -289,10 +287,12 @@ def parse_command_line():
     archive_group.add_argument("--zips", metavar="yes|no", dest="zips", choices=["yes", "no"], default="yes",
                                help="descend into zips (default=yes)")
 
-    # Output behaviour.
-    output_group = parser.add_argument_group("output")
-    output_group.add_argument("--utc", metavar="yes|no", dest="output_as_utc", choices=["yes", "no"], default="yes",
-                              help="output timestamps as UTC (default=yes)")
+    # Date handling.
+    date_group = parser.add_argument_group("date handling")
+    date_group.add_argument("--utc-in", metavar="yes|no", dest="input_as_utc", choices=["yes", "no"], default="yes",
+                            help="treat input timestamps with no timezone s UTC (default=yes)")
+    date_group.add_argument("--utc-out", metavar="yes|no", dest="output_as_utc", choices=["yes", "no"], default="yes",
+                            help="output timestamps as UTC (default=yes)")
 
     # The paths to inspect for log files.
     parser.add_argument("paths", metavar="<file|dir>", type=str, nargs="*", help="files or directories to search")
@@ -302,7 +302,7 @@ def parse_command_line():
 
 if __name__ == "__main__":
     # Enable basic logging.
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
+    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
 
     args = parse_command_line()
 
@@ -320,6 +320,9 @@ if __name__ == "__main__":
     if args.ignored:
         for item in args.ignored:
             ignore_list.append(item)
+
+    # Should we treat input timestamps with no timezone as UTC?
+    default_tz = datetime.timezone.utc if args.input_as_utc == "yes" else None
 
     # Should we output as UTC or in the local timezone?
     output_as_utc = args.output_as_utc == "yes"
