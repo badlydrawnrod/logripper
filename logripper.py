@@ -52,8 +52,9 @@ import dateutil.parser
 min_date = datetime.datetime(datetime.MINYEAR, 1, 1, tzinfo=datetime.timezone.utc)
 max_date = datetime.datetime(datetime.MAXYEAR, 12, 31, 23, 59, tzinfo=datetime.timezone.utc)
 
-# Default timezone.
-default_tz = None
+# Input and output timezones.
+input_tz = None
+output_tz = None
 
 # Compile a regular expression that will match an ISO timestamp.
 iso = r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.(\d{9}|\d{6}|\d{3}))?(Z|[+-]\d{4}|[+-]\d{2}(:\d{2})?)?"
@@ -74,7 +75,7 @@ ignore_list = []
 
 
 def parse_date(s):
-    return dateutil.parser.parse(s).astimezone(tz=default_tz)
+    return dateutil.parser.parse(s).astimezone(tz=input_tz)
 
 
 class LogStream:
@@ -250,13 +251,13 @@ def iterate_through_logs(streams):
             line = oldest.peekline()
 
 
-def rip(filepaths, start_time, end_time, output_as_utc):
+def rip(filepaths, start_time, end_time):
     streams = recurse_in_filesystem(filepaths)
     for timestamp, line, path in iterate_through_logs(streams):
         line = line.strip()
         timestamp = parse_date(timestamp)
         if start_time <= timestamp < end_time:
-            output_timestamp = timestamp.astimezone(datetime.timezone.utc) if output_as_utc else timestamp
+            output_timestamp = timestamp.astimezone(output_tz)
             print(f"{output_timestamp}, {line}, {path}")
 
 
@@ -318,17 +319,16 @@ if __name__ == "__main__":
 
     # Which files to ignore.
     if args.ignored:
-        for item in args.ignored:
-            ignore_list.append(item)
+        ignore_list.extend(args.ignored)
 
-    # Should we treat input timestamps with no timezone as UTC?
-    default_tz = datetime.timezone.utc if args.input_as_utc == "yes" else None
+    # When reading timestamps, should we treat those with no timezone as UTC or the local timezone?
+    input_tz = datetime.timezone.utc if args.input_as_utc == "yes" else None
 
-    # Should we output as UTC or in the local timezone?
-    output_as_utc = args.output_as_utc == "yes"
+    # When writing timestamps, should we output them as UTC or the local timezone?
+    output_tz = datetime.timezone.utc if args.output_as_utc == "yes" else None
 
     # Default to the current directory if no paths were specified.
     args.paths = args.paths if args.paths else ["."]
 
     # Examine the logs, in timeline order.
-    rip((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time, output_as_utc)
+    rip((pathlib.Path(p) for p in args.paths), args.start_time, args.end_time)
