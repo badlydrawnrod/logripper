@@ -7,11 +7,11 @@
 # applications, and to alter it and redistribute it freely, subject to the following restrictions:
 #
 # 1. The origin of this software must not be misrepresented; you must not claim that you
-# wrote the original software. If you use this software in a product, an acknowledgment
-# in the product documentation would be appreciated but is not required.
+#    wrote the original software. If you use this software in a product, an acknowledgment
+#    in the product documentation would be appreciated but is not required.
 #
 # 2. Altered source versions must be plainly marked as such, and must not be misrepresented
-# as being the original software.
+#    as being the original software.
 #
 # 3. This notice may not be removed or altered from any source distribution.
 
@@ -30,12 +30,10 @@ import dateutil.parser
 #   e.g.
 #   - display / don't display timestamps
 #   - display / don't display paths
-#   - output as CSV
+#   - output as CSV (or not)
 # TODO: allow the user to specify a file inside an archive if they know the name, e.g., my.zip/my_file.txt
 # TODO: make it extensible in terms of archive formats, etc, that it can handle (by registering handlers for filetypes).
 # TODO: allow it to select file formats by extension as well as by inspection (if that makes sense).
-# TODO: allow the loglevel to be set via the command line.
-# TODO: publish on GitHub.
 # TODO: add a README.md.
 # TODO: publish on PyPI.
 # TODO: handle other (non ISO) time formats when parsing.
@@ -47,6 +45,7 @@ import dateutil.parser
 # TODO: restrict *file* timestamps to a particular range, e.g., ignore files created before last year or that are less
 #   than 3 months old.
 # TODO: the equivalent of tail -f across all (toplevel?) logs.
+# TODO: consider simple persistence, e.g., w/ SQLite.
 
 # Date ranges.
 min_date = datetime.datetime(datetime.MINYEAR, 1, 1, tzinfo=datetime.timezone.utc)
@@ -178,10 +177,9 @@ def recurse(open_fn, full_path, open_token):
 
 
 def is_ignored(path):
-    for item in ignore_list:
-        if path.match(item):
-            logging.info(f"filtering out {path}")
-            return True
+    if any(path.match(item) for item in ignore_list):
+        logging.info(f"filtering out {path}")
+        return True
     return False
 
 
@@ -266,6 +264,11 @@ def parse_command_line():
     parser = argparse.ArgumentParser(prog="python -m logripper", description="Rip through log files in time order.",
                                      epilog="Happy ripping.")
 
+    # Our own log level.
+    parser.add_argument("--loglevel", metavar="<level>", dest="log_level",
+                        choices=["debug", "info", "warn", "error", "fatal"],
+                        help="log level (default=error)")
+
     # Filtering by time.
     time_group = parser.add_argument_group("filtering by time")
     time_group.add_argument("--time-from", "--from", "--starttime",
@@ -291,7 +294,7 @@ def parse_command_line():
     # Date handling.
     date_group = parser.add_argument_group("date handling")
     date_group.add_argument("--utc-in", metavar="yes|no", dest="input_as_utc", choices=["yes", "no"], default="yes",
-                            help="treat input timestamps with no timezone s UTC (default=yes)")
+                            help="treat input timestamps with no timezone as UTC (default=yes)")
     date_group.add_argument("--utc-out", metavar="yes|no", dest="output_as_utc", choices=["yes", "no"], default="yes",
                             help="output timestamps as UTC (default=yes)")
 
@@ -303,11 +306,22 @@ def parse_command_line():
 
 if __name__ == "__main__":
     # Enable basic logging.
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
+    logging.basicConfig(level=logging.ERROR, format="%(asctime)s %(message)s", datefmt="%FT%H:%M:%S%z")
 
     args = parse_command_line()
 
-    # Turn the parsed args into a configuration that we can understand.
+    # Set our log level to whatever the user chose.
+    log_levels = {
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warn": logging.WARN,
+        "error": logging.ERROR,
+        "fatal": logging.FATAL
+    }
+    log_level = log_levels.get(args.log_level, logging.ERROR)
+    logging.getLogger().setLevel(log_level)
+
+    # Turn the parsed timestamps into something that we can understand.
     args.start_time = parse_date(args.start_time) if args.start_time else min_date
     args.end_time = parse_date(args.end_time) if args.end_time else max_date
 
